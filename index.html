@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Jcrop Demo</title>
+    <meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+    <link rel="stylesheet" href="style.css" type="text/css">
+    <link rel="stylesheet" type="text/css" href="libs/uploadify-3.2.1/uploadify.css">
+    <link rel="stylesheet" href="libs/Jcrop-0.9.12/css/jquery.Jcrop.css" type="text/css">
+    <script src="libs/jquery-1.11.1.js"></script>
+    <script src="libs/uploadify-3.2.1/jquery.uploadify.min.js"></script>
+    <script src="libs/Jcrop-0.9.12/js/jquery.Jcrop.js"></script>
+    <script src="libs/jquery.form-3.37.0.js"></script>
+    <script type="text/javascript">
+    jQuery(function($){
+        /* 初始化头像上传组件 */
+        $('#upload-avatar').uploadify({
+            'swf'           : 'libs/uploadify-3.2.1/uploadify.swf',
+            'uploader'      : 'Upload-ToyUp.php',
+            'method'        : 'post',
+            'debug'         : true,
+            'fileObjName'   : 'fileData',
+            'fileSizeLimit' : '2048KB',
+            'fileTypeDesc'  : 'Image Files',
+            'fileTypeExts'  : '*.gif; *.jpg; *.png',
+            'multi'         : true,
+            'onInit'        : function(){
+                //$(".uploadify-queue").hide();
+            },
+            'onUploadSuccess': function(file, data, response){
+                if (JcropAPI){
+                    // 每次重新初始化之前必须前销毁之前的实例，否则即使图片换掉了也只是替换img标签的值，Jcrop的容器还覆盖在上面
+                    // 但是每次销毁又会连同之前$preview.appendTo(JcropAPI.ui.holder);这一步放置的预览容器
+                    // ! TO-DO, 此处待取舍
+                    JcropAPI.destroy();
+                }
+                data = jQuery.parseJSON(data);
+                $('#target').attr('src','data:image/jpeg;base64,'+data.base64Data);
+                $('.jcrop-preview').attr('src','data:image/jpeg;base64,'+data.base64Data);
+                $('#src').attr('value','data:image/jpeg;base64,'+data.base64Data);
+                $('#target').Jcrop({
+                    boxWidth: 300,
+                    boxHeight: 300,
+                    //trueSize: [500,300],
+                    onChange: update,
+                    onSelect: update,
+                    aspectRatio: 1
+                },function(){
+                    // 使用API获取图片真实尺寸
+                    var bounds = this.getBounds();
+                    boundx = bounds[0];
+                    boundy = bounds[1];
+                    // 将包含API的当前对象保存到变量JcropAPI
+                    JcropAPI = this;
+                    // 移动预览到Jcrop的CSS定位的容器
+                    $preview.appendTo(JcropAPI.ui.holder);
+                });
+                $('.crop-box').fadeIn();
+            }
+        });
+
+        // 在这个作用域创建变量用来调用Jcrop的API以及获取图片尺寸
+        var JcropAPI,
+            boundx,
+            boundy,
+
+            // 缓存一些与预览相关的基本信息
+            $preview = $('#preview-pane'),
+            $pcnt = $('#preview-pane .preview-container'),
+            $pimg = $('#preview-pane .preview-container img'),
+
+            xsize = $pcnt.width(),
+            ysize = $pcnt.height();
+
+        console.log('init',[xsize,ysize]);
+
+        // 整合调用更新方法
+        function update(c)
+        {
+            updateCoords(c);
+            updatePreview(c);
+        }
+
+        // 更新坐标
+        function updateCoords(c)
+        {
+            $('#x').val(c.x);
+            $('#y').val(c.y);
+            $('#w').val(c.w);
+            $('#h').val(c.h);
+        }
+
+        // 更新预览
+        function updatePreview(c)
+        {
+            if (parseInt(c.w) > 0)
+            {
+                var rx = xsize / c.w;
+                var ry = ysize / c.h;
+
+                $pimg.css({
+                    width: Math.round(rx * boundx) + 'px',
+                    height: Math.round(ry * boundy) + 'px',
+                    marginLeft: '-' + Math.round(rx * c.x) + 'px',
+                    marginTop: '-' + Math.round(ry * c.y) + 'px'
+                });
+            }
+        }
+
+        // 显示响应数据
+        function showResponse(response)  {
+            $('#display-pane').html('<img style="margin: 5px; opacity: 1;" src="'+response.cropBase64Data+'"></img>');
+        }
+        var options = {
+            success:showResponse,
+            dataType:'json'
+        }
+        $('#crop-form').ajaxForm(options);
+    });
+
+    // 检查坐标是否设置
+    function checkCoords()
+    {
+        if (parseInt($('#w').val())) return true;
+        alert('Please select a crop region then press submit.');
+        return false;
+    }
+    </script>
+</head>
+<body>
+    <div>
+        <form enctype="multipart/form-data">
+            <input id="upload-avatar" type="file">
+        </form>
+    </div>
+    <div class="crop-box" style="display:none;">
+        <img src="" id="target" alt="[Avatar]">
+        <div id="preview-pane">
+            <div class="preview-container">
+                <img src="" class="jcrop-preview" alt="[Preview]">
+            </div>
+        </div>
+        <div id="display-pane"></div>
+        <form id="crop-form" action="Crop-imgGo.php" method="post" onsubmit="return checkCoords();">
+            <input type="hidden" id="x" name="x">
+            <input type="hidden" id="y" name="y">
+            <input type="hidden" id="w" name="w">
+            <input type="hidden" id="h" name="h">
+            <input type="hidden" id="src" name="src" value="">
+            <input type="submit" value="Crop Image">
+        </form>
+    </div>
+</body>
+</html>
+
